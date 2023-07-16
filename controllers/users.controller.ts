@@ -145,10 +145,14 @@ export const activeAccount = async(req: Request, res: Response) => {
       const q = "SELECT * FROM users WHERE id = ?"
 
       db.query(q,[id],(err:any, user:any) => {
+       
       if (err) {
           console.error("Error executing query:", err);
-          return res.status(500).json({ error: "Unable to proceed further at the moment " });
+          return res.status(500).json({ error: "Email may be already verified or the link has expired. " });
+         
         }
+        if(user.length === 0) return res.status(404).json({ error: 'Account not found ' })
+
         if (user[0]?.active === 1) {
           return res.status(200).json({ msg: "Email already verified" });
         }
@@ -229,10 +233,10 @@ export const login = async (req: Request, res: Response) => {
             console.error("Error executing query:", err);
             return res.status(500).json({ error: "Unable to proceed further at the moment " });
           }
-        if(user.length === 0) return res.status(404).json({ message: 'Invalid email ' })
+        if(user.length === 0) return res.status(404).json({ error: 'Invalid email ' })
 
         const checkPassword = bcrypt.compareSync(password, user.password)
-        if (!checkPassword) return res.status(404).json({ message: 'Invalid password ' })
+        if (!checkPassword) return res.status(404).json({ error: 'Invalid password ' })
        
         if(user.twoFA === true && user.secretkey !== null) return  send2FA(email,user?.secretkey, res)
         const access_token = generateAccessToken({id: user.id},res)
