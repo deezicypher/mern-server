@@ -13,7 +13,7 @@ router.post('/login', validLogin,login)
 router.post('/enable-2fa', verifyToken, enable2fa)
 router.post('/verify-2fa', verifyToken, verifyotp)
 router.post('/resend-email', check('email').isEmail().withMessage('Must be a valid email address'),resendEmail)
-router.post('/activate', check('email').isEmail().withMessage('Must be a valid email address'),activeAccount)
+router.post('/verify', check('email').isEmail().withMessage('Must be a valid email address'),activeAccount)
 router.post('/forgot-password', check('email').isEmail().withMessage('Must be a valid email address'),forgetPassword)
 router.post('/reset-password', 
 check('email').isEmail().withMessage('Must be a valid email address'),

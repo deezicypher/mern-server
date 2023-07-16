@@ -9,6 +9,8 @@ import shortid from 'shortid';
 import send2FA from '../utils/send2FA';
 import speakeasy from 'speakeasy';
 import { db } from '../config/db';
+import dotenv from "dotenv"
+dotenv.config()
 
 
 const CLIENT_URL = `${process.env.CLIENT_URL}`
@@ -77,8 +79,9 @@ export const register = async (req: Request, res: Response) => {
                       console.error("Error executing query:", err);
                       return res.status(500).json({ error: "Unable to proceed further at the moment " });
                     }
-                    const active_token = generateActiveToken({id:suser.insertId})
-                    const url = `${CLIENT_URL}/verifyemail/${active_token}`
+                    const active_token =  generateActiveToken({id:suser.insertId})
+
+                    const url = `${CLIENT_URL}/verifyemail/${active_token}/`
                    sendEmail(email, url,  "Verify your email address", res, email)
                   })
               })
@@ -111,14 +114,15 @@ export const resendEmail = async (req:Request, res:Response) => {
         db.query(q,[email],(err:any, user:any) => {
         if (err) {
             console.error("Error executing query:", err);
-            return res.status(500).json({ error: "Unable to proceed further at the moment " });
+            return res.status(500).json({ error: "Unable to send mail at the moment " });
           }
           if(user.length === 0) return res.status(404).json({ message: 'Account not found ' })
-          if (user[0]?.verified === 1) {
-            return res.status(404).json({ error: "Email already verified" });
+          if (user[0]?.active === 1) {
+            return res.status(200).json({ msg: "Email already verified" });
           }
-          const active_token = generateActiveToken({id:user[0]?.id})
-          const url = `${CLIENT_URL}/verifyemail/${active_token}`;
+          const newuser = {id:user[0]?.id}
+          const active_token = generateActiveToken(newuser)
+          const url = `${CLIENT_URL}/verifyemail/${active_token}/`;
          sendEmail(email, url, "Verify your email address", res, email);
 })
   
@@ -131,23 +135,34 @@ export const resendEmail = async (req:Request, res:Response) => {
 export const activeAccount = async(req: Request, res: Response) => {
     try {
       const { token } = req.body
-      
+ 
       const decoded = <DecodedToken>jwt.verify(token, `${process.env.ACTIVE_TOKEN_SECRET}`)
-
 
       const { id } = decoded 
 
+
       if(!id) return res.status(400).json({error: "Invalid authentication."})
+      const q = "SELECT * FROM users WHERE id = ?"
 
-    const q = "UPDATE user SET active = ? WHERE id= ?"
-
-    db.query(q, [1,id], (err, data) => {
+      db.query(q,[id],(err:any, user:any) => {
       if (err) {
-        console.error("Error executing query:", err);
+          console.error("Error executing query:", err);
+          return res.status(500).json({ error: "Unable to proceed further at the moment " });
+        }
+        if (user[0]?.active === 1) {
+          return res.status(200).json({ msg: "Email already verified" });
+        }
+
+      const uq = "UPDATE users SET active = ? WHERE id= ?"
+
+    db.query(uq, [1, id], (err, data) => {
+      if (err) {
+        console.error("Error executing active query:", err);
         return res.status(500).json({error: "Email may be already verified or the link has expired."})
       }
       return res.json({msg: "Account Activated"})
     })
+  })
 
      
  }catch (err: any) {
