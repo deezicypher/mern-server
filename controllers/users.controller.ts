@@ -33,17 +33,16 @@ export const register = async (req: Request, res: Response) => {
         db.query(q,[email.toLowerCase(), username.toLowerCase(), phone.toLowerCase()],(err:any, user:any) => {
             if (err) {
                 console.error("Error executing query:", err);
-                return res.status(500).json({ error: "Internal server error" });
+                return res.status(500).json({ error: "Unable to proceed further at the moment " });
               }
-
             if (user.length > 0) {
-                if (user.email === email) {
+                if (user[0].email === email) {
                   return res.status(400).json({ error: "Email already exists" });
                 }
-                if (user.username === username) {
+                if (user[0].username === username) {
                   return res.status(400).json({ error: "Username already exists" });
                 }
-                if (user.phone === phone) {
+                if (user[0].phone === phone) {
                   return res.status(400).json({ error: "Phone number already exists" });
                 }
               }
@@ -55,37 +54,33 @@ export const register = async (req: Request, res: Response) => {
        
 
         const referringUser = "SELECT * FROM users WHERE referralCode = ?"
-        const saveQ = "INSERT INTO users (`username`, `email`,`fullname`,`phone`,`referralCode`,`password`,`role`,`referredBy`)"
-        const sq = "INSERT into stats (`user`)"
+        const saveQ = "INSERT INTO users (`username`, `email`,`fullname`,`phone`,`referralCode`,`password`,`role`,`referredBy`)   VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        const sq = "INSERT into stats (`user`) VALUES (?)"
  
         db.query(referringUser, [refcode], (err:any, referredby:any) => {
            if (err) {
-              console.error("Error executing query:", err);
-              return res.status(500).json({ error: "Internal server error" });
+              console.error("Error ref executing query:", err);
+              return res.status(500).json({ error: "Unable to proceed further at the moment " });
             }
               const referredbyId = referredby[0]?.id
               const values = [
-                  username,email,fullname,phone,referralCode,password,'USER',referredbyId
+                  username,email,fullname,phone,referralCode,hashedPass,'USER',referredbyId
               ]
-              db.query(saveQ, values, (err:any, user:any) => {
-               if (err) {
-              console.error("Error executing query:", err);
-              return res.status(500).json({ error: "Internal server error" });
+              db.query(saveQ, values, (err:any, suser:any) => {
+         
+               if (err) { 
+              console.error("Error executing save user query:", err);
+              return res.status(500).json({ error: "Unable to proceed further at the moment " });
             }
-                  db.query(sq,[user[0].id], (err:any, data:any) => {
+                  db.query(sq,[suser.insertId], (err:any, data:any) => {
                     if (err) {
                       console.error("Error executing query:", err);
-                      return res.status(500).json({ error: "Internal server error" });
+                      return res.status(500).json({ error: "Unable to proceed further at the moment " });
                     }
-                    const active_token = generateActiveToken({id:user[0]?.id})
-       
- 
-                    const url = `${CLIENT_URL}/verify/${active_token}`
-                   
-            
+                    const active_token = generateActiveToken({id:suser.insertId})
+                    const url = `${CLIENT_URL}/verifyemail/${active_token}`
                    sendEmail(email, url,  "Verify your email address", res, email)
                   })
-                 
               })
             })
 
@@ -113,22 +108,18 @@ export const resendEmail = async (req:Request, res:Response) => {
   try {
     const q = "SELECT * FROM users WHERE email = ?"
 
-    db.query(q,[email],(err:any, user:any) => {
+        db.query(q,[email],(err:any, user:any) => {
         if (err) {
             console.error("Error executing query:", err);
-            return res.status(500).json({ error: "Internal server error" });
+            return res.status(500).json({ error: "Unable to proceed further at the moment " });
           }
           if(user.length === 0) return res.status(404).json({ message: 'Account not found ' })
           if (user[0]?.verified === 1) {
             return res.status(404).json({ error: "Email already verified" });
           }
-
           const active_token = generateActiveToken({id:user[0]?.id})
-
-    const url = `${CLIENT_URL}/verifyemail/${active_token}`;
-    
-    sendEmail(email, url, "Verify your email address", res, email);
-
+          const url = `${CLIENT_URL}/verifyemail/${active_token}`;
+         sendEmail(email, url, "Verify your email address", res, email);
 })
   
   } catch (error) {
@@ -201,7 +192,7 @@ export const verifyotp = async (req:Request, res:Response) => {
     db.query(q,[id], (err:any, user:any) => {
         if (err) {
             console.error("Error executing query:", err);
-            return res.status(500).json({ error: "Internal server error" });
+            return res.status(500).json({ error: "Unable to proceed further at the moment " });
           }
         const access_token = generateAccessToken({id},res)
         res.json({ msg: '2FA verification successful', user: { ...user[0], password: '' },access_token });
@@ -221,7 +212,7 @@ export const login = async (req: Request, res: Response) => {
     db.query(q,[email], (err:any, user:any) => {
         if (err) {
             console.error("Error executing query:", err);
-            return res.status(500).json({ error: "Internal server error" });
+            return res.status(500).json({ error: "Unable to proceed further at the moment " });
           }
         if(user.length === 0) return res.status(404).json({ message: 'Invalid email ' })
 
@@ -265,7 +256,7 @@ export const forgetPassword = async (req:Request, res:Response) => {
     db.query(q,[email], (err:any, user:any) => {
         if (err) {
             console.error("Error executing query:", err);
-            return res.status(500).json({ error: "Internal server error" });
+            return res.status(500).json({ error: "Unable to proceed further at the moment " });
           }
 
         if(user.length === 0) return res.status(404).json({error:"Account not found"})
@@ -301,7 +292,7 @@ export const resetPass = async(req: Request, res: Response) => {
     db.query(q,[hashedPass,id], (err:any, user:any) => {
       if (err) {
         console.error("Error executing query:", err);
-        return res.status(500).json({ error: "Internal server error" });
+        return res.status(500).json({ error: "Unable to proceed further at the moment " });
       }
         res.json({msg: "Password Reset Successful", user:user[0]})
     })
@@ -323,7 +314,7 @@ export const getProfile = async (req: ReqAuth, res: Response) => {
       db.query(q,[req.user?.id], (error:any, user:any) => {
         if (error) {
             console.error("Error executing query:", error);
-            return res.status(500).json({ error: "Internal server error" });
+            return res.status(500).json({ error: "Unable to proceed further at the moment " });
           } 
     if (!user) return res.status(400).json("No User")
     return res.status(200).json(user)

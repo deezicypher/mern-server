@@ -38,7 +38,7 @@ export const deposit = async (req:ReqAuth, res:Response) => {
         currentDate.getMonth() + duration,
         currentDate.getDate()
       );
-        const q = "INSERT into orders (`name`,`amount`, 'crypto`,`txid`, `method`, `status`,`dateordered`,`expires`)"
+        const q = "INSERT into orders (`name`,`amount`, 'crypto`,`txid`, `method`, `status`,`dateordered`,`expires`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         const values = [
             plan,amount,amountcrypto,txid,method,status,currentDate,targetDate
         ]
@@ -97,7 +97,7 @@ export const withdrawProfit = async (req:ReqAuth, res:Response) => {
     const id  = req.user?.id
 
     try{
-    const q = "INSERT into withdrawals (`amount`, `method`,`txid`,`address`,`status`, `user`)"
+    const q = "INSERT into withdrawals (`amount`, `method`,`txid`,`address`,`status`, `user`) VALUES (?, ?, ?, ?, ?, ?)"
     db.query(q,[amount, method,txid, address, status, id], (err, data) => {
         if (err) {
             console.error("Error executing query:", err);
