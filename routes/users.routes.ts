@@ -1,5 +1,5 @@
 import express from 'express';
-import { activeAccount, enable2fa, forgetPassword,  getProfile, login, register, resendEmail, resetPass, verifyotp } from '../controllers/users.controller';
+import { activeAccount, enable2fa, forgetPassword,  getProfile, login, register, resendEmail, resetPass, updateProfile, verifyotp } from '../controllers/users.controller';
 import { validLogin, validSigup } from '../middleware/valid';
 import { check } from 'express-validator';
 import { verifyToken, verifyUser } from '../middleware/verify';
@@ -8,6 +8,7 @@ import { verifyToken, verifyUser } from '../middleware/verify';
 const router = express.Router();
 
 router.get('/profile',verifyToken,getProfile)
+router.get('/update',verifyToken,updateProfile)
 router.post('/signup',validSigup, register)
 router.post('/login', validLogin,login)
 router.post('/enable-2fa', verifyToken, enable2fa)

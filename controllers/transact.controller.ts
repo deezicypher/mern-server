@@ -38,7 +38,7 @@ export const deposit = async (req:ReqAuth, res:Response) => {
         currentDate.getMonth() + duration,
         currentDate.getDate()
       );
-        const q = "INSERT into orders (`name`,`amount`, 'crypto`,`txid`, `method`, `status`,`dateordered`,`expires`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        const q = "INSERT into orders (`product`,`amount`, 'crypto`,`txid`, `method`, `status`,`dateordered`,`expires`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         const values = [
             plan,amount,amountcrypto,txid,method,status,currentDate,targetDate
         ]

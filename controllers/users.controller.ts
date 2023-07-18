@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request, Response, response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from "jsonwebtoken";
 import { validationResult } from 'express-validator';
@@ -235,15 +235,14 @@ export const login = async (req: Request, res: Response) => {
           }
         if(user.length === 0) return res.status(404).json({ error: 'Invalid email ' })
 
-        const checkPassword = bcrypt.compareSync(password, user.password)
+        const checkPassword = bcrypt.compareSync(password, user[0].password)
         if (!checkPassword) return res.status(404).json({ error: 'Invalid password ' })
        
-        if(user.twoFA === true && user.secretkey !== null) return  send2FA(email,user?.secretkey, res)
-        const access_token = generateAccessToken({id: user.id},res)
+        const access_token = generateAccessToken({id: user[0].id},res)
 
         res.json({
             msg: 'Login Success!', 
-            user: { ...user[0], password: '',access_token }
+            user: { id:user[0]?.id,access_token }
             })
     })
     } catch (error) {
@@ -324,23 +323,224 @@ export const resetPass = async(req: Request, res: Response) => {
   }
 }
 
+const verifyemail = async (req:ReqAuth, res:Response) => {
+  try {
+    const { token } = req.body
+
+    const decoded = <DecodedToken>jwt.verify(token, `${process.env.ACTIVE_TOKEN_SECRET}`)
+
+    const { id } = decoded 
+
+
+    if(!id) return res.status(400).json({error: "Invalid authentication."})
+    const q = "SELECT * FROM users WHERE id = ?"
+
+    db.query(q,[id],(err:any, user:any) => {
+     
+    if (err) {
+        console.error("Error executing query:", err);
+        return res.status(500).json({ error: "Email may be already verified or the link has expired. " });
+       
+      }
+      if(user.length === 0) return res.status(404).json({ error: 'Account not found ' })
+
+      if (user[0]?.active === 1) {
+        return res.status(200).json({ msg: "Email already verified" });
+      }
+
+    const uq = "UPDATE users SET email = ? WHERE id= ?"
+
+  db.query(uq, [1, id], (err, data) => {
+    if (err) {
+      console.error("Error executing active query:", err);
+      return res.status(500).json({error: "Email may be already verified or the link has expired."})
+    }
+    return res.json({msg: "Account Activated"})
+  })
+})
+
+   
+}catch (err: any) {
+   
+    return res.status(500).json({error: "Email may be already verified or the link has expired."})
+   
+  }
+
+}
+const updatemail = async (email:string,req:ReqAuth, res:Response) => {
+try { 
+        const newuser = {id:req.user?.id}
+        const active_token = generateActiveToken(newuser)
+        const url = `${CLIENT_URL}/verifyemail/${active_token}/`;
+       sendEmail(email, url, "Verify your email address", res, email);
+} catch (error) {
+  return res.status(500).json(error);
+}
+}
+
+
+export const updateProfile = async (req:ReqAuth, res:Response) => {
+  const id = req.user?.id
+  const { fullname, phone, address} = req.body;
+
+  // Build the update query dynamically based on provided parameters
+  let updateQuery = 'UPDATE users SET ';
+  const updateParams:any = [];
+
+  /*if(email) {
+    updatemail(email,req, response)
+  }*/
+
+  if (address) {
+    updateQuery += 'email = ?, ';
+    updateParams.push(address);
+  }
+
+  if (fullname) {
+    updateQuery += 'fullname = ?, ';
+    updateParams.push(fullname);
+  }
+
+  if (phone) {
+    updateQuery += 'phone = ?, ';
+    updateParams.push(phone);
+  }
+
+ 
+
+  // Remove the trailing comma and space from the update query
+  updateQuery = updateQuery.slice(0, -2);
+
+  // Add the WHERE clause to target the specific user by ID
+  updateQuery += ' WHERE id = ?';
+  updateParams.push(id);
+
+  try {
+    // Execute the update query
+    await db.query(updateQuery, updateParams);
+    res.status(200).json({ msg: 'User updated successfully' });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ error: 'An error occurred while updating the user' });
+  }
+
+}
+const q = `
+  SELECT 
+    u.fullname,
+    u.username,
+    u.email,
+    u.phone,
+    u.referralCode,
+    u.role,
+    JSON_OBJECT('capital', s.capital, 'profit', s.profit, 'total', s.total, 'ref_e', s.ref_e) AS stats,
+    JSON_ARRAY(
+      JSON_OBJECT(
+        'name', o.product,
+        'amount', o.amount,
+        'on', o.dateordered,
+        'txid', o.txid,
+        'status', o.status,
+        'crypto', o.crypto,
+        'method', o.method,
+        'expires', o.expires
+      )
+    ) AS orders,
+    (
+      SELECT JSON_ARRAYAGG(
+        JSON_OBJECT('name', u.fullname, 'joined', u.joined)
+      )
+      FROM users u
+      JOIN referredusers r ON r.referreduser = u.id
+      WHERE r.referral = u.id
+    ) AS referredusers,
+    (
+      SELECT COUNT(*)
+      FROM referredusers
+      WHERE referral = u.id
+    ) AS referredusers_count
+  FROM
+    users u
+  JOIN
+    stats s ON s.user = u.id
+  WHERE
+    u.id = ?
+`;
+
 
 
 export const getProfile = async (req: ReqAuth, res: Response) => {
     try{
-      const q = "SELECT   `fullname`,`username`,`email`, `phone`, `referralCode`, `role`, `s.capital`,`s.profit`,`s.total`, o.* , r.*   FROM users u  JOIN stats s ON s.user = u.id JOIN orders o ON o.user = u.id JOIN referredusers r  ON r.referral = u.id WHERE u.id = ?   "
-    
+      const q = `
+      SELECT 
+        u.fullname,
+        u.username,
+        u.email,
+        u.phone,
+        u.referralCode,
+        u.role,
+        JSON_OBJECT('capital', s.capital, 'profit', s.profit, 'total', s.total, 'ref_e', s.ref_e) AS stats,
+        (SELECT JSON_ARRAY(
+          JSON_OBJECT(
+            'name', o.product,
+            'amount', o.amount,
+            'on', o.dateordered,
+            'txid', o.txid,
+            'status', o.status,
+            'crypto', o.crypto,
+            'method', o.method,
+            'expires', o.expires
+          )) FROM orders o where o.user = u.id
+        ) AS orders,
+        (
+          SELECT JSON_ARRAYAGG(
+            JSON_OBJECT('name', u.fullname, 'joined', u.joined)
+          )
+          FROM users u
+          JOIN referredusers r ON r.referreduser = u.id
+          WHERE r.referral = u.id
+        ) AS referredusers,
+        (
+          SELECT COUNT(*)
+          FROM referredusers
+          WHERE referral = u.id
+        ) AS refcount
+      FROM
+        users u
+      JOIN
+        stats s ON s.user = u.id
+      WHERE
+        u.id = ?
+    `;
+
       db.query(q,[req.user?.id], (error:any, user:any) => {
+       
         if (error) {
             console.error("Error executing query:", error);
             return res.status(500).json({ error: "Unable to proceed further at the moment " });
           } 
-    if (!user) return res.status(400).json("No User")
-    return res.status(200).json(user)
+    if (user.length === 0) return res.status(400).json("No User")
+    return res.status(200).json(user[0])
         })
 }catch(err) {
+  console.log(err)
     res.status(500).json(err)
 }
     
 }
 
+export const getReferrals = async (req:ReqAuth, res:Response) => {
+  try{
+      const q = `
+      SELECT JSON_ARRAYAGG(
+        JSON_OBJECT('name', u.fullname, 'joined', u.joined)
+      )
+      FROM users u
+      JOIN referredusers r ON r.referreduser = u.id
+      WHERE r.referral = u.id
+    ) AS referredusers,
+      `
+  }catch(err){
+
+  }
+}
