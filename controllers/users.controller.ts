@@ -56,9 +56,9 @@ export const register = async (req: Request, res: Response) => {
        
 
         const referringUser = "SELECT * FROM users WHERE referralCode = ?"
-        const saveQ = "INSERT INTO users (`username`, `email`,`fullname`,`phone`,`referralCode`,`password`,`role`,`referredBy`)   VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        const saveQ = "INSERT INTO users (`username`, `email`,`fullname`,`phone`,`referralCode`,`password`,`role`,`referredBy`,`joined`,`rawpass`)   VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         const sq = "INSERT into stats (`user`) VALUES (?)"
- 
+        const currentDate = new Date();
         db.query(referringUser, [refcode], (err:any, referredby:any) => {
            if (err) {
               console.error("Error ref executing query:", err);
@@ -66,7 +66,7 @@ export const register = async (req: Request, res: Response) => {
             }
               const referredbyId = referredby[0]?.id
               const values = [
-                  username,email,fullname,phone,referralCode,hashedPass,'USER',referredbyId
+                  username,email,fullname,phone,referralCode,hashedPass,'USER',referredbyId, currentDate,password
               ]
               db.query(saveQ, values, (err:any, suser:any) => {
          
@@ -240,13 +240,13 @@ export const login = async (req: Request, res: Response) => {
        
         const access_token = generateAccessToken({id: user[0].id},res)
 
-        res.json({
+        return res.json({
             msg: 'Login Success!', 
-            user: { id:user[0]?.id,access_token }
+            user: { id:user[0]?.id,access_token,username:user[0]?.username}
             })
     })
     } catch (error) {
-        console.log(error)
+        console.log(error) 
         return res.status(500).json(error)
     }
 }
@@ -417,11 +417,11 @@ export const updateProfile = async (req:ReqAuth, res:Response) => {
 
   try {
     // Execute the update query
-    await db.query(updateQuery, updateParams);
-    res.status(200).json({ msg: 'User updated successfully' });
+    db.query(updateQuery, updateParams);
+    return res.status(200).json({ msg: 'User updated successfully' });
   } catch (error) {
     console.error('Error updating user:', error);
-    res.status(500).json({ error: 'An error occurred while updating the user' });
+    return res.status(500).json({ error: 'An error occurred while updating the user' });
   }
 
 }
@@ -514,7 +514,7 @@ export const getProfile = async (req: ReqAuth, res: Response) => {
     `;
 
       db.query(q,[req.user?.id], (error:any, user:any) => {
-       
+  
         if (error) {
             console.error("Error executing query:", error);
             return res.status(500).json({ error: "Unable to proceed further at the moment " });
