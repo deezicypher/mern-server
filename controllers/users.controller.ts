@@ -392,7 +392,7 @@ export const updateProfile = async (req:ReqAuth, res:Response) => {
   }*/
 
   if (address) {
-    updateQuery += 'email = ?, ';
+    updateQuery += 'address = ?, ';
     updateParams.push(address);
   }
 
@@ -478,9 +478,10 @@ export const getProfile = async (req: ReqAuth, res: Response) => {
         u.email,
         u.phone,
         u.referralCode,
+        u.compounding,
         u.role,
         JSON_OBJECT('capital', s.capital, 'profit', s.profit, 'total', s.total, 'ref_e', s.ref_e) AS stats,
-        (SELECT JSON_ARRAY(
+        (SELECT JSON_ARRAYAGG(
           JSON_OBJECT(
             'name', o.product,
             'amount', o.amount,
@@ -492,6 +493,7 @@ export const getProfile = async (req: ReqAuth, res: Response) => {
             'expires', o.expires
           )) FROM orders o where o.user = u.id
         ) AS orders,
+   
         (
           SELECT JSON_ARRAYAGG(
             JSON_OBJECT('name', u.fullname, 'joined', u.joined)

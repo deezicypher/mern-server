@@ -16,7 +16,7 @@ export const ledger = async (req:ReqAuth, res:Response) => {
                 console.error("Error executing query:", err);
                 return res.status(500).json({ error: "Internal server error" });
               }
-            res.status(200).json(orders)
+            return res.status(200).json(orders)
         })
       
        
@@ -29,7 +29,36 @@ export const ledger = async (req:ReqAuth, res:Response) => {
 
 export const deposit = async (req:ReqAuth, res:Response) => {
 
-    const {amount, amountcrypto,status, method, plan, txid, duration,id} = req.body
+    const {amount, amountcrypto,status, method, product, txid, duration} = req.body
+    console.log(req.body)
+    const currentDate = new Date();
+
+    const targetDate = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth() + duration,
+        currentDate.getDate()
+      );
+        const q = "INSERT INTO orders (`product`,`amount`, `crypto`,`txid`, `method`, `status`,`dateordered`,`expires`,`user`) VALUES (?, ?, ?, ?, ?, ?, ?, ?,?)"
+        const values = [
+            product,amount,amountcrypto,txid,method,status,currentDate,targetDate,req.user?.id
+        ]
+try{ 
+    db.query(q,values,(err, data) => {
+        if (err) {
+            console.error("Error executing query:", err);
+            return res.status(500).json({ error: "Internal server error" });
+          }
+        res.json({msg:" Transaction Pending"})
+    })
+}catch(err){
+    console.log(err) 
+    return res.status(500).json({error:err})
+}
+}
+
+export const compound = async (req:ReqAuth, res:Response) => {
+
+    const {amount,duration} = req.body
 
     const currentDate = new Date();
 
@@ -38,25 +67,83 @@ export const deposit = async (req:ReqAuth, res:Response) => {
         currentDate.getMonth() + duration,
         currentDate.getDate()
       );
-        const q = "INSERT into orders (`product`,`amount`, 'crypto`,`txid`, `method`, `status`,`dateordered`,`expires`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        const cuq = "SELECT * FROM users WHERE id=? AND compounding !== 0 "
+        const q = "INSERT INTO compounding (`amount`,`status`,`duration`, `activated`,`expires`,`user`) VALUES (?, ?, ?,?,?, ?)"
         const values = [
-            plan,amount,amountcrypto,txid,method,status,currentDate,targetDate
+            amount,"PENDING",duration,currentDate,targetDate,req.user?.id
         ]
-        const sq = "UPDATE  stats SET  capital = capital + ? "
-try{
+        const uq = "UPDATE  users SET compounding  = 1 WHERE id = ?"
+try{ 
+
     db.query(q,values,(err, data) => {
         if (err) {
             console.error("Error executing query:", err);
             return res.status(500).json({ error: "Internal server error" });
           }
-    db.query(sq, [amount], (err, data) => {
-        res.json({msg:" Transaction Successful"})
+          db.query(uq, [req.user?.id], (err, data) => {
+            if (err) {
+                console.error("Error executing query:", err);
+                return res.status(500).json({ error: "Internal server error" });
+              }
+        return res.json({msg:" Transaction Pending"})
+            })
+    })
+}catch(err){
+    console.log(err) 
+    return res.status(500).json({error:err})
+}
+}
+
+export const compounding = async (req:ReqAuth, res:Response) => {
+
+    const q = "SELECT * FROM compounding WHERE user = ?"
+    try{
+        db.query(q,[req.user?.id], (err, compound) => {
+            if (err) {
+                console.error("Error executing query:", err);
+                return res.status(500).json({ error: "Internal server error" });
+              }
+           return  res.status(200).json(compound)
+        })
+      
+       
+        
+    }catch(err){
+            console.log(err)
+    }
+}
+
+export const approvedeposit = async (req:ReqAuth, res:Response) => {
+
+    const {txid,amount} = req.body
+
+
+        const q = `UPDATE orders SET status='APPROVED' WHERE txid = ?`
+        const values = [
+            txid
+        ]
+        const sq = "UPDATE  stats SET  capital = capital + ? WHERE user = ?"
+try{ 
+    db.query(q,values,(err, data) => {
+        if (err) {
+            console.error("Error executing query:", err);
+            return res.status(500).json({ error: "Internal server error" });
+          }
+    db.query(sq, [amount, req.user?.id], (err, data) => {
+        if (err) {
+            console.error("Error executing query:", err);
+            return res.status(500).json({ error: "Internal server error" });
+          }
+        return res.json({msg:" Transaction Successful"})
     })
     })
 }catch(err){
-    console.log(err)
+    console.log(err) 
     return res.status(500).json({error:err})
 }
+}
+
+
 
 /*
 const user = prisma.user.findUnique({
@@ -88,22 +175,23 @@ if (user?.referredUser) {
     }
 
 }*/
-}
+
 
 
 
 export const withdrawProfit = async (req:ReqAuth, res:Response) => {
-    const {amount,method,txid,address, status} = req.body
+    const {amount,txid,address} = req.body
     const id  = req.user?.id
 
     try{
-    const q = "INSERT into withdrawals (`amount`, `method`,`txid`,`address`,`status`, `user`) VALUES (?, ?, ?, ?, ?, ?)"
-    db.query(q,[amount, method,txid, address, status, id], (err, data) => {
+    const q = "INSERT into withdrawals (`amount`,`txid`,`address`,`status`, `user`) VALUES (?, ?, ?, ?, ?)"
+
+    db.query(q,[amount,txid, address,"PENDING", id], (err, data) => {
         if (err) {
             console.error("Error executing query:", err);
             return res.status(500).json({ error: "Internal server error" });
           }
-        res.json({msg:" Transaction Successful"})
+        return res.json({msg:" Transaction Successful"})
     })
 
 }catch(err){
@@ -114,3 +202,19 @@ export const withdrawProfit = async (req:ReqAuth, res:Response) => {
 }
 
 
+export const withdrawals = async (req:ReqAuth, res:Response) => {
+    
+    const q = "SELECT * FROM withdrawals WHERE user = ?"
+    try{
+        db.query(q,[req.user?.id], (err, withdrawals) => {
+            if (err) {
+                console.error("Error executing query:", err);
+                return res.status(500).json({ error: "Internal server error" });
+              }
+            return res.status(200).json(withdrawals)
+        })
+              
+    }catch(err){
+            console.log(err)
+    }
+}

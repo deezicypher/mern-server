@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 import transactRoute from './routes/transact.routes';
-import adminRoute from './routes/admin/users.routes'
+import adminRoute from './routes/admin/index.routes'
 import ContactEmail from './utils/Contact';
 
 dotenv.config();

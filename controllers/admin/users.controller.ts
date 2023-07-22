@@ -37,14 +37,14 @@ export const login = async (req: Request, res: Response) => {
             COALESCE((SELECT COUNT(*) FROM compounding WHERE status = 'PENDING'), 0) as pendingcompounding,
             COALESCE((SELECT COUNT(*) FROM compounding WHERE status = 'APPROVED'), 0) as approvedcompounding;
           `
-          db.query(q,(err,data)=>{
+          db.query(q,(err,data:any)=>{
             if (err) {
                 console.error("Error executing query:", err);
                 return res.status(500).json({ error: "Unable to proceed further at the moment " });
               }
             return res.json({
                 msg: 'Login Success!', 
-                user: { id:user[0]?.id,username:user[0]?.username ,access_token, data }
+                user: { id:user[0]?.id,username:user[0]?.username ,access_token, data:data[0] }
                 })
           })
  
@@ -99,8 +99,9 @@ export const getProfile = async (req: ReqAuth, res: Response) => {
         u.referralCode,
         u.address,
         u.role,
+        u.joined,
         JSON_OBJECT('capital', s.capital, 'profit', s.profit, 'total', s.total, 'ref_e', s.ref_e) AS stats,
-        (SELECT JSON_ARRAY(
+        (SELECT JSON_ARRAYAGG(
           JSON_OBJECT(
             'name', o.product,
             'amount', o.amount,
@@ -270,19 +271,5 @@ export const orders = async (req:ReqAuth, res:Response) => {
     }
 }
 
-export const ApproveOrder = async (req:ReqAuth, res:Response) => {
-    const {planId} = req.body
-    const q = "UPDATE orders SET status = ? where id = ?"
-    try{
-        db.query(q, ["APPROVED", planId], (err, data) => {
-            if (err) {
-                console.error("Error executing query:", err);
-                return res.status(500).json({ error: "Internal server error" });
-              }
-            return res.status(200).json(data)
-        })
-        
-    }catch(err){
-            console.log(err)
-    }
-}
+
+

@@ -8,7 +8,7 @@ import { verifyToken, verifyUser } from '../middleware/verify';
 const router = express.Router();
 
 router.get('/profile',verifyToken,getProfile)
-router.get('/update',verifyToken,updateProfile)
+router.patch('/update',verifyToken,updateProfile)
 router.post('/signup',validSigup, register)
 router.post('/login', validLogin,login)
 router.post('/enable-2fa', verifyToken, enable2fa)
