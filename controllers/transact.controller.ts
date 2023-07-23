@@ -1,11 +1,12 @@
 import {Request, Response} from 'express'
-
 import { db } from '../config/db';
 import { ReqAuth } from '../types';
+import dotenv from "dotenv"
+import { actionEmail } from '../utils/sendMail';
+dotenv.config()
 
 
-
-
+const ADMIN_EMAIL = `${process.env.ADMIN_EMAIL}`;
 
 export const ledger = async (req:ReqAuth, res:Response) => {
     
@@ -30,7 +31,7 @@ export const ledger = async (req:ReqAuth, res:Response) => {
 export const deposit = async (req:ReqAuth, res:Response) => {
 
     const {amount, amountcrypto,status, method, product, txid, duration} = req.body
-    console.log(req.body)
+
     const currentDate = new Date();
 
     const targetDate = new Date(
@@ -48,7 +49,9 @@ try{
             console.error("Error executing query:", err);
             return res.status(500).json({ error: "Internal server error" });
           }
-        res.json({msg:" Transaction Pending"})
+        
+        actionEmail(ADMIN_EMAIL,"Payment Deposit", `A user just made a deposit of ${amount} for ${product} `)
+        return res.json({msg:" Transaction Pending"})
     })
 }catch(err){
     console.log(err) 
@@ -85,6 +88,7 @@ try{
                 console.error("Error executing query:", err);
                 return res.status(500).json({ error: "Internal server error" });
               }
+        actionEmail(ADMIN_EMAIL,"Compound Request", `A user just requested for compounding `)
         return res.json({msg:" Transaction Pending"})
             })
     })
@@ -134,6 +138,8 @@ try{
             console.error("Error executing query:", err);
             return res.status(500).json({ error: "Internal server error" });
           }
+
+          
         return res.json({msg:" Transaction Successful"})
     })
     })
@@ -183,14 +189,18 @@ export const withdrawProfit = async (req:ReqAuth, res:Response) => {
     const {amount,txid,address} = req.body
     const id  = req.user?.id
 
-    try{
-    const q = "INSERT into withdrawals (`amount`,`txid`,`address`,`status`, `user`) VALUES (?, ?, ?, ?, ?)"
+    const currentDate = new Date();
 
-    db.query(q,[amount,txid, address,"PENDING", id], (err, data) => {
+    try{
+
+    const q = "INSERT into withdrawals (`amount`,`txid`,`address`,`status`, `user`.`on`) VALUES (?, ?, ?, ?, ?,?)"
+
+    db.query(q,[amount,txid, address,"PENDING", id, currentDate ], (err, data) => {
         if (err) {
             console.error("Error executing query:", err);
             return res.status(500).json({ error: "Internal server error" });
           }
+          actionEmail(ADMIN_EMAIL,"Withdraw Request", `A user just requested for withdrawal`)
         return res.json({msg:" Transaction Successful"})
     })
 

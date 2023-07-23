@@ -2,6 +2,7 @@ import {Request, Response} from 'express'
 
 import { db } from '../../config/db';
 import { ReqAuth } from '../../types';
+import shortid from 'shortid';
 
 
 
@@ -9,7 +10,7 @@ import { ReqAuth } from '../../types';
 
 export const ledger = async (req:ReqAuth, res:Response) => {
     
-    const q = "SELECT o.*, u.username FROM orders o JOIN users u ON o.user = u.id"
+    const q = "SELECT o.*, u.username FROM orders o LEFT JOIN users u ON o.user = u.id"
     try{
         db.query(q,[req.user?.id], (err, orders) => {
             if (err) {
@@ -25,10 +26,13 @@ export const ledger = async (req:ReqAuth, res:Response) => {
     }
 }
 
+
+
+
 export const getOrder = async (req:ReqAuth, res:Response) => {
     const {id} = req.params
     
-    const q = "SELECT o.*, u.username, u.id AS userId FROM orders o JOIN users u ON o.user = u.id WHERE o.id = ?"
+    const q = "SELECT o.*, u.username, u.id AS userId FROM orders o LEFT JOIN users u ON o.user = u.id WHERE o.id = ?"
     try{
         
         db.query(q,[id], (err, order) => {
@@ -48,7 +52,7 @@ export const getOrder = async (req:ReqAuth, res:Response) => {
 
 export const updateOrder = async (req:ReqAuth, res:Response) => {
    
-    const { product,amount,method,crypto,id} = req.body;
+    const { product,amount,method,txid,crypto,id} = req.body;
   
     // Build the update query dynamically based on provided parameters
     let updateQuery = 'UPDATE orders SET ';
@@ -60,6 +64,10 @@ export const updateOrder = async (req:ReqAuth, res:Response) => {
       updateQuery += 'product = ?, ';
       updateParams.push(product);
     }
+    if (txid) {
+        updateQuery += 'txid = ?, ';
+        updateParams.push(txid);
+      }
     if (amount) {
         updateQuery += 'amount = ?, ';
         updateParams.push(amount);
@@ -103,10 +111,33 @@ export const updateOrder = async (req:ReqAuth, res:Response) => {
   
   }
 
+export const deleteOrder = async (req:ReqAuth, res:Response) => {
+   
+    const {id} = req.body;
 
+    const q = "DELETE FROM orders WHERE id=?"
+  
+    try { 
+
+      db.query(q, id, (err, data) => {
+        if (err) {
+            console.error("Error executing query:", err);
+            return res.status(500).json({ error: "Internal server error" });
+          }
+        return res.status(200).json({ msg: 'Order deleted successfully' });
+      });
+     
+
+    } catch (error) {
+      console.error('Error updating user:', error);
+      return res.status(500).json({ error: 'An error occurred while updating the user' });
+    }
+  
+  }
+  
 export const deposit = async (req:ReqAuth, res:Response) => {
 
-    const {amount, amountcrypto,status, method, product, txid, duration} = req.body
+    const {amount, crypto,status, method, product, duration,id} = req.body
 
     const currentDate = new Date();
 
@@ -117,7 +148,7 @@ export const deposit = async (req:ReqAuth, res:Response) => {
       );
         const q = "INSERT INTO orders (`product`,`amount`, `crypto`,`txid`, `method`, `status`,`dateordered`,`expires`,`user`) VALUES (?, ?, ?, ?, ?, ?, ?, ?,?)"
         const values = [
-            product,amount,amountcrypto,txid,method,status,currentDate,targetDate,req.user?.id
+            product,amount,crypto,shortid(),method,status,currentDate,targetDate,id
         ]
 try{ 
     db.query(q,values,(err, data) => {
@@ -136,7 +167,7 @@ try{
 
 export const compound = async (req:ReqAuth, res:Response) => {
 
-    const {amount,duration} = req.body
+    const {amount,duration,id} = req.body
 
     const currentDate = new Date();
 
@@ -147,15 +178,22 @@ export const compound = async (req:ReqAuth, res:Response) => {
       );
         const q = "INSERT INTO compounding (`amount`,`status`,`activated`,`expires`,`user`) VALUES (?, ?, ?, ?, ?)"
         const values = [
-            amount,"PENDING",currentDate,targetDate,req.user?.id
+            amount,"PENDING",currentDate,targetDate,id
         ]
+        const sq = "UPDATE  users SET  compounding = 1  WHERE id = ?"
 try{ 
     db.query(q,values,(err, data) => {
         if (err) {
             console.error("Error executing query:", err);
             return res.status(500).json({ error: "Internal server error" });
           }
-        res.json({msg:" Transaction Pending"})
+          db.query(sq, [req.user?.id], (err, data) => {
+            if (err) {
+                console.error("Error executing query:", err);
+                return res.status(500).json({ error: "Internal server error" });
+              }
+            return res.json({msg:" Transaction Pending"})
+        })
     })
 }catch(err){
     console.log(err) 
@@ -198,56 +236,27 @@ try{
 
 
 
-/*
-const user = prisma.user.findUnique({
-    where:{
-        id:req.user?.id,
-    },
-    include:{
-        plans: {
-            select: {
-              id: true,
-              amount: true,
-            },
-          },
-        referredUser: true,
-    }
-})
 
-
-if (user?.referredUser) {
-    const totalAmounts: Record<number, number> = {};
-  
-    for (const plan of [...user.plans]) {
-      const { id, amount } = plan;
-      if (totalAmounts[id]) {
-        totalAmounts[id] += amount;
-      } else {
-        totalAmounts[id] = amount;
-      }
-    }
-
-}*/
 
 
 
 export const approvecompounding = async (req:ReqAuth, res:Response) => {
 
-    const {id} = req.params
+    const {id, userId} = req.body
 
 
-        const q = `UPDATE compounding SET status='APPROVED' WHERE user = ?`
+        const q = `UPDATE compounding SET status='APPROVED' WHERE id = ?`
         const values = [
             id
         ]
-        const sq = "UPDATE  users SET  compounding = 1  WHERE id = ?"
+        const sq = "UPDATE  users SET  compounding = 2  WHERE id = ?"
 try{ 
     db.query(q,values,(err, data) => {
         if (err) {
             console.error("Error executing query:", err);
             return res.status(500).json({ error: "Internal server error" });
           }
-    db.query(sq, [id], (err, data) => {
+    db.query(sq, [userId], (err, data) => {
         if (err) {
             console.error("Error executing query:", err);
             return res.status(500).json({ error: "Internal server error" });
@@ -261,9 +270,137 @@ try{
 }
 }
 
+export const getCompounding = async (req:ReqAuth, res:Response) => {
+    const {id} = req.params
+    const q = "SELECT c.*, u.username, u.id AS userId FROM compounding c JOIN users u ON c.user = u.id WHERE c.id = ?"
+    try{
+        db.query(q,[id], (err, compound) => {
+            if (err) {
+                console.error("Error executing query:", err);
+                return res.status(500).json({ error: "Internal server error" });
+              }
+          
+            return res.status(200).json(compound)
+        })
+        
+    }catch(err){
+            console.log(err)
+    }
+}
+
+export const updateCompounding = async (req:ReqAuth, res:Response) => {
+   
+    const { status,duration,id} = req.body;
+  
+    // Build the update query dynamically based on provided parameters
+    let updateQuery = 'UPDATE withdrawals SET ';
+    const updateParams:any = [];
+  
+   
+  
+    if (status) {
+      updateQuery += 'status = ?, ';
+      updateParams.push(status);
+    }
+    if (duration) {
+        updateQuery += 'duration = ?, ';
+        updateParams.push(duration);
+      }
+  
+
+  
+
+   
+  
+    // Remove the trailing comma and space from the update query
+    updateQuery = updateQuery.slice(0, -2);
+  
+    // Add the WHERE clause to target the specific user by ID
+    updateQuery += ' WHERE id = ?';
+    updateParams.push(id);
+  
+    try { 
+      // Execute the update query
+      
+      db.query(updateQuery, updateParams, (err, data) => {
+        if (err) {
+            console.error("Error executing query:", err);
+            return res.status(500).json({ error: "Internal server error" });
+          }
+        return res.status(200).json({ msg: 'Compound updated successfully' });
+      });
+     
+
+    } catch (error) {
+      console.error('Error updating user:', error);
+      return res.status(500).json({ error: 'An error occurred while updating the user' });
+    }
+  
+  }
+
+export const compounds = async (req:ReqAuth, res:Response) => {
+
+    const q = "SELECT c.*, u.username FROM compounding c JOIN users u ON c.user = u.id"
+ 
+    try{
+        db.query(q,[], (err, compounds) => {
+   
+            if (err) {
+                console.error("Error executing query:", err);
+                return res.status(500).json({ error: "Internal server error" });
+              }
+            return res.status(200).json(compounds)
+        })
+    
+        
+    }catch(err){
+            console.log(err)
+    }
+}
+
+
+export const withdrawals = async (req:ReqAuth, res:Response) => {
+
+    const q = "SELECT w.*, u.username FROM withdrawals w JOIN users u ON w.user = u.id"
+ 
+    try{
+        db.query(q,[], (err, withdrawals) => {
+   
+            if (err) {
+                console.error("Error executing query:", err);
+                return res.status(500).json({ error: "Internal server error" });
+              }
+            return res.status(200).json(withdrawals)
+        })
+    
+        
+    }catch(err){
+            console.log(err)
+    }
+}
+
+export const getWithdrawal = async (req:ReqAuth, res:Response) => {
+        const {id} = req.params
+        const q = "SELECT w.*, u.username, u.id AS userId FROM withdrawals w JOIN users u ON w.user = u.id WHERE w.id = ?"
+        try{
+            db.query(q,[id], (err, withdrawal) => {
+                if (err) {
+                    console.error("Error executing query:", err);
+                    return res.status(500).json({ error: "Internal server error" });
+                  }
+              
+                return res.status(200).json(withdrawal)
+            })
+            
+        }catch(err){
+                console.log(err)
+        }
+    }
+    
+
 export const withdrawProfit = async (req:ReqAuth, res:Response) => {
-    const {amount,method,txid,address, status} = req.body
-    const id  = req.user?.id
+    const {amount,method,txid,address, status,id} = req.body
+  
 
     try{
     const q = "INSERT into withdrawals (`amount`, `method`,`txid`,`address`,`status`, `user`) VALUES (?, ?, ?, ?, ?, ?)"
@@ -274,7 +411,7 @@ export const withdrawProfit = async (req:ReqAuth, res:Response) => {
           }
         return res.json({msg:" Transaction Successful"})
     })
-
+1
 }catch(err){
     console.log(err)
     return res.status(500).json({error:err})
@@ -283,3 +420,85 @@ export const withdrawProfit = async (req:ReqAuth, res:Response) => {
 }
 
 
+
+export const approveWithdrawal = async (req:ReqAuth, res:Response) => {
+
+    const {id, amount, userId} = req.body
+
+
+        const q = `UPDATE withdrawals SET status='APPROVED' WHERE id = ?`
+   
+        const sq = "UPDATE  stats  SET profit = CASE WHEN profit >= ? THEN profit - ? ELSE profit END  WHERE user = ?"
+
+try{ 
+    db.query(q,[id],(err, data) => {
+        if (err) {
+            console.error("Error executing query:", err);
+            return res.status(500).json({ error: "Internal server error" });
+          }
+    db.query(sq, [amount,amount, userId], (err, data) => {
+        if (err) {
+            console.error("Error executing query:", err);
+            return res.status(500).json({ error: "Internal server error" });
+          }
+        return res.json({msg: "Withdrawal Successful"})
+    })
+    })
+}catch(err){
+    console.log(err) 
+    return res.status(500).json({error:err})
+}
+}
+
+export const updateWithdrawal = async (req:ReqAuth, res:Response) => {
+   
+    const { status,amount,address,id} = req.body;
+  
+    // Build the update query dynamically based on provided parameters
+    let updateQuery = 'UPDATE withdrawals SET ';
+    const updateParams:any = [];
+  
+   
+  
+    if (status) {
+      updateQuery += 'status = ?, ';
+      updateParams.push(status);
+    }
+    if (amount) {
+        updateQuery += 'amount = ?, ';
+        updateParams.push(amount);
+      }
+  
+    if (address) {
+      updateQuery += 'address = ?, ';
+      updateParams.push(address);
+    }
+  
+
+   
+  
+    // Remove the trailing comma and space from the update query
+    updateQuery = updateQuery.slice(0, -2);
+  
+    // Add the WHERE clause to target the specific user by ID
+    updateQuery += ' WHERE id = ?';
+    updateParams.push(id);
+  
+    try { 
+      // Execute the update query
+      
+      db.query(updateQuery, updateParams, (err, data) => {
+        if (err) {
+            console.error("Error executing query:", err);
+            return res.status(500).json({ error: "Internal server error" });
+          }
+        return res.status(200).json({ msg: 'Withdrawals updated successfully' });
+      });
+     
+
+    } catch (error) {
+      console.error('Error updating user:', error);
+      return res.status(500).json({ error: 'An error occurred while updating the user' });
+    }
+  
+  }

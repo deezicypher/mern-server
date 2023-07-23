@@ -3,7 +3,8 @@ import { db } from '../../config/db';
 import { ReqAuth } from '../../types';
 import { generateAccessToken } from '../../utils/generateToken';
 import bcrypt from 'bcryptjs';
-
+import { validationResult } from 'express-validator';
+import shortid from 'shortid';
 
 
 export const login = async (req: Request, res: Response) => {
@@ -25,29 +26,10 @@ export const login = async (req: Request, res: Response) => {
         if(!checkadmin) return res.status(403).json({error:"You're not authorized"})
         
         const access_token = generateAccessToken({id: user[0].id},res)
-          const q = 
-          `
-          SELECT
-            COALESCE((SELECT COUNT(*) FROM users WHERE active = 1), 0) as activeusers,
-            COALESCE((SELECT COUNT(*) FROM users WHERE active = 0), 0) as nonactiveusers,
-            COALESCE((SELECT COUNT(*) FROM orders WHERE status = 'PENDING'), 0) as pendingorders,
-            COALESCE((SELECT COUNT(*) FROM orders WHERE status = 'APPROVED'), 0) as approvedorders,
-            COALESCE((SELECT COUNT(*) FROM withdrawals WHERE status = 'PENDING'), 0) as pendingwithdrawals,
-            COALESCE((SELECT COUNT(*) FROM withdrawals WHERE status = 'APPROVED'), 0) as approvedwithdrawals,
-            COALESCE((SELECT COUNT(*) FROM compounding WHERE status = 'PENDING'), 0) as pendingcompounding,
-            COALESCE((SELECT COUNT(*) FROM compounding WHERE status = 'APPROVED'), 0) as approvedcompounding;
-          `
-          db.query(q,(err,data:any)=>{
-            if (err) {
-                console.error("Error executing query:", err);
-                return res.status(500).json({ error: "Unable to proceed further at the moment " });
-              }
-            return res.json({
-                msg: 'Login Success!', 
-                user: { id:user[0]?.id,username:user[0]?.username ,access_token, data:data[0] }
-                })
-          })
- 
+        return res.json({
+            msg: 'Login Success!', 
+            user: { id:user[0]?.id,username:user[0]?.username ,access_token }
+            })
     })
     } catch (error) {
         console.log(error)
@@ -55,7 +37,96 @@ export const login = async (req: Request, res: Response) => {
     } 
 }
 
+export const create = async (req: Request, res: Response) => {
+    const {username, email,fullname,phone,password, role,address, active, userId} = req.body;
 
+    const errors = validationResult(req)
+
+    if (!errors.isEmpty()) {
+      const firstError = errors.array().map(error => error.msg)[0];
+      return res.status(422).json({
+        error: firstError
+      });
+    } 
+
+      try {
+  
+          const q =  "SELECT * FROM users WHERE email = ? or username = ? or phone = ?"
+  
+          db.query(q,[email.toLowerCase(), username.toLowerCase(), phone.toLowerCase()],(err:any, user:any) => {
+              if (err) {
+                  console.error("Error executing query:", err);
+                  return res.status(500).json({ error: "Unable to proceed further at the moment " });
+                }
+              if (user.length > 0) {
+                  if (user[0].email === email) {
+                    return res.status(400).json({ error: "Email already exists" });
+                  }
+                  if (user[0].username === username) {
+                    return res.status(400).json({ error: "Username already exists" });
+                  }
+                  if (user[0].phone === phone) {
+                    return res.status(400).json({ error: "Phone number already exists" });
+                  }
+                }
+    
+  
+          const salt = bcrypt.genSaltSync(10)
+          const hashedPass = bcrypt.hashSync(password, salt)
+          const referralCode = shortid();
+         
+          const saveQ = "INSERT INTO users (`username`, `email`,`fullname`,`phone`,`referralCode`,`password`,`role`,`referredBy`,`joined`,`rawpass`,`address`,`active`)   VALUES (?, ?, ?, ?, ?, ?, ?, ?,?,?,?,?)"
+          const sq = "INSERT into stats (`user`) VALUES (?)"
+          const currentDate = new Date();
+
+
+                const values = [
+                    username,email,fullname,phone,referralCode,hashedPass,role,userId, currentDate,password,address,active
+                ]
+                db.query(saveQ, values, (err:any, suser:any) => {
+           
+                 if (err) { 
+                console.error("Error executing save user query:", err);
+                return res.status(500).json({ error: "Unable to proceed further at the moment " });
+              }
+                    db.query(sq,[suser.insertId], (err:any, data:any) => {
+                      if (err) {
+                        console.error("Error executing query:", err);
+                        return res.status(500).json({ error: "Unable to proceed further at the moment " })
+                      }
+                      return res.json({msg: "User Created Successfully"})
+                    })
+                })
+              })
+  
+      }catch (error) {
+          console.log(error)
+          return res.status(500).json(error)
+      }
+}
+
+
+export const getStanding = async (req: Request, res: Response) => {
+    const q = 
+    `
+    SELECT
+      COALESCE((SELECT COUNT(*) FROM users WHERE active = 1), 0) as activeusers,
+      COALESCE((SELECT COUNT(*) FROM users WHERE active = 0), 0) as nonactiveusers,
+      COALESCE((SELECT COUNT(*) FROM orders WHERE status = 'PENDING'), 0) as pendingorders,
+      COALESCE((SELECT COUNT(*) FROM orders WHERE status = 'APPROVED'), 0) as approvedorders,
+      COALESCE((SELECT COUNT(*) FROM withdrawals WHERE status = 'PENDING'), 0) as pendingwithdrawals,
+      COALESCE((SELECT COUNT(*) FROM withdrawals WHERE status = 'APPROVED'), 0) as approvedwithdrawals,
+      COALESCE((SELECT COUNT(*) FROM compounding WHERE status = 'PENDING'), 0) as pendingcompounding,
+      COALESCE((SELECT COUNT(*) FROM compounding WHERE status = 'APPROVED'), 0) as approvedcompounding;
+    `
+    db.query(q,(err,data:any)=>{
+      if (err) {
+          console.error("Error executing query:", err);
+          return res.status(500).json({ error: "Unable to proceed further at the moment " });
+        }
+      return res.json(data[0])
+          })
+    }
 
 export const getUsers = async (req: Request, res: Response) => {
     try {
@@ -97,6 +168,7 @@ export const getProfile = async (req: ReqAuth, res: Response) => {
         u.email,
         u.phone,
         u.referralCode,
+        u.referredBy,
         u.address,
         u.role,
         u.joined,
@@ -152,7 +224,9 @@ export const getProfile = async (req: ReqAuth, res: Response) => {
  
 export const updateUser = async (req:ReqAuth, res:Response) => {
     const {id} = req.params
-    const { fullname,email, phone, address} = req.body;
+    const { fullname,email, phone, address, role, userId} = req.body;
+
+ 
   
     // Build the update query dynamically based on provided parameters
     let updateQuery = 'UPDATE users SET ';
@@ -180,8 +254,18 @@ export const updateUser = async (req:ReqAuth, res:Response) => {
       updateQuery += 'phone = ?, ';
       updateParams.push(phone);
     }
-  
-   
+    
+    if (role) {
+        updateQuery += 'role = ?, ';
+        updateParams.push(role);
+    }
+
+    if (userId) {
+        updateQuery += 'referredBy = ?, ';
+        updateParams.push(userId);
+    }
+
+   else return res.status(200).json({ msg: 'No Changes made at the moment' });
   
     // Remove the trailing comma and space from the update query
     updateQuery = updateQuery.slice(0, -2);

@@ -1,6 +1,6 @@
 import express from 'express';
 import { verifyToken, verifyUser } from '../../middleware/verify';
-import { getUsers, login, orders,getProfile, updateUser, updateStat } from '../../controllers/admin/users.controller';
+import { getUsers, login, orders,getProfile, updateUser, updateStat, getStanding, create } from '../../controllers/admin/users.controller';
 import { updateProfile } from '../../controllers/users.controller';
 
 
@@ -8,11 +8,13 @@ import { updateProfile } from '../../controllers/users.controller';
 const router = express.Router();
 
 router.get('', getUsers)
-router.get('/:id', getProfile)
-router.post('/update/:id', updateUser)
-router.post('/stats/update/:id', updateStat)
+router.get('/standing',verifyToken, getStanding)
+router.get('/:id',verifyToken, getProfile)
+router.post('/create', verifyToken, create)
+router.post('/update/:id', verifyToken, updateUser)
+router.post('/stats/update/:id',verifyToken, updateStat)
 router.post('/login', login)
-router.get('/orders', orders)
+router.get('/orders',verifyToken, orders)
 
 export default router
 

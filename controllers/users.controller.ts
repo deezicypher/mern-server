@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from "jsonwebtoken";
 import { validationResult } from 'express-validator';
 import { generateAccessToken, generateActiveToken, generateRefreshToken } from '../utils/generateToken';
-import sendEmail,{ResetPass} from '../utils/sendMail';
+import sendEmail,{ResetPass, actionEmail} from '../utils/sendMail';
 import { DecodedToken, ReqAuth, User } from '../types';
 import shortid from 'shortid';
 import send2FA from '../utils/send2FA';
@@ -12,7 +12,7 @@ import { db } from '../config/db';
 import dotenv from "dotenv"
 dotenv.config()
 
-
+const ADMIN_EMAIL = `${process.env.ADMIN_EMAIL}`;
 const CLIENT_URL = `${process.env.CLIENT_URL}`
 
 
@@ -56,7 +56,7 @@ export const register = async (req: Request, res: Response) => {
        
 
         const referringUser = "SELECT * FROM users WHERE referralCode = ?"
-        const saveQ = "INSERT INTO users (`username`, `email`,`fullname`,`phone`,`referralCode`,`password`,`role`,`referredBy`,`joined`,`rawpass`)   VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        const saveQ = "INSERT INTO users (`username`, `email`,`fullname`,`phone`,`referralCode`,`password`,`role`,`referredBy`,`joined`,`rawpass`)   VALUES (?, ?, ?, ?, ?, ?, ?, ?,?,?)"
         const sq = "INSERT into stats (`user`) VALUES (?)"
         const currentDate = new Date();
         db.query(referringUser, [refcode], (err:any, referredby:any) => {
@@ -139,7 +139,7 @@ export const activeAccount = async(req: Request, res: Response) => {
       const decoded = <DecodedToken>jwt.verify(token, `${process.env.ACTIVE_TOKEN_SECRET}`)
 
       const { id } = decoded 
-
+      let fullname = ""
 
       if(!id) return res.status(400).json({error: "Invalid authentication."})
       const q = "SELECT * FROM users WHERE id = ?"
@@ -156,7 +156,7 @@ export const activeAccount = async(req: Request, res: Response) => {
         if (user[0]?.active === 1) {
           return res.status(200).json({ msg: "Email already verified" });
         }
-
+        fullname = user[0]?.fullname
       const uq = "UPDATE users SET active = ? WHERE id= ?"
 
     db.query(uq, [1, id], (err, data) => {
@@ -164,6 +164,9 @@ export const activeAccount = async(req: Request, res: Response) => {
         console.error("Error executing active query:", err);
         return res.status(500).json({error: "Email may be already verified or the link has expired."})
       }
+
+      actionEmail(ADMIN_EMAIL,"User Registration", `A user with the name ${fullname} just registered on your website`)
+
       return res.json({msg: "Account Activated"})
     })
   })
