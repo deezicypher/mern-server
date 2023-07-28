@@ -6,7 +6,7 @@ import cookieParser from 'cookie-parser';
 import path from 'path';
 import transactRoute from './routes/transact.routes';
 import adminRoute from './routes/admin/index.routes'
-import ContactEmail from './utils/Contact';
+import ContactEmail from './utils/contact';
 
 dotenv.config();
 
@@ -36,17 +36,30 @@ app.post('/api/contact', async (req, res) => {
 })
 
 if(process.env.NODE_ENV === 'production'){
-    app.use(express.static('_static'))
-    app.get('/app/*', (req, res) => {
-      res.sendFile(path.join(__dirname, 'dist', 'index.html'))
+    //app.use(express.static('../client/dist'))
+    
+    
+    app.use('/admin/', express.static(path.join(__dirname, 'static/admin')));
+    app.get('/admin*', (req, res) => {
+      res.sendFile(path.join(__dirname, 'admin', 'index.html'))
     })
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(__dirname, '_static', 'index.html'))
+
+    app.use('/app/', express.static(path.join(__dirname, 'static/app')));
+    app.get('/app*', (req, res) => {
+      res.sendFile(path.join(__dirname, 'app', 'index.html'))
     })
-  }
-
-
-  
+     
+ 
+    app.use(express.static(path.join(__dirname, 'static')));
+    app.get('/*', (req, res) => {
+      res.sendFile(path.join(__dirname, 'home', 'index.html'))
+    })
+ 
+  }  
+   
+   
+   
 app.listen(5000,()=>{
     console.log(`⚡️[server]:  Server is running at 5000`);
 })
+  

@@ -10,7 +10,7 @@ const ADMIN_EMAIL = `${process.env.ADMIN_EMAIL}`;
 
 export const ledger = async (req:ReqAuth, res:Response) => {
     
-    const q = "SELECT * FROM orders WHERE user = ?"
+    const q = "SELECT * FROM orders WHERE user = ?  ORDER BY id DESC"
     try{
         db.query(q,[req.user?.id], (err, orders) => {
             if (err) {
@@ -193,7 +193,7 @@ export const withdrawProfit = async (req:ReqAuth, res:Response) => {
 
     try{
 
-    const q = "INSERT into withdrawals (`amount`,`txid`,`address`,`status`, `user`.`on`) VALUES (?, ?, ?, ?, ?,?)"
+    const q = "INSERT into withdrawals (`amount`,`txid`,`address`,`status`, `user`,`on`) VALUES (?, ?, ?, ?, ?,?)"
 
     db.query(q,[amount,txid, address,"PENDING", id, currentDate ], (err, data) => {
         if (err) {
@@ -201,7 +201,7 @@ export const withdrawProfit = async (req:ReqAuth, res:Response) => {
             return res.status(500).json({ error: "Internal server error" });
           }
           actionEmail(ADMIN_EMAIL,"Withdraw Request", `A user just requested for withdrawal`)
-        return res.json({msg:" Transaction Successful"})
+        return res.json({msg:" Withdrawal Pending"})
     })
 
 }catch(err){

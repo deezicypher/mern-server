@@ -10,7 +10,7 @@ import shortid from 'shortid';
 
 export const ledger = async (req:ReqAuth, res:Response) => {
     
-    const q = "SELECT o.*, u.username FROM orders o LEFT JOIN users u ON o.user = u.id"
+    const q = "SELECT o.*, u.username FROM orders o LEFT JOIN users u ON o.user = u.id ORDER BY id DESC "
     try{
         db.query(q,[req.user?.id], (err, orders) => {
             if (err) {

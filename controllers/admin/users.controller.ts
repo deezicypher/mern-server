@@ -185,12 +185,13 @@ export const getProfile = async (req: ReqAuth, res: Response) => {
             'expires', o.expires
           )) FROM orders o where o.user = u.id
         ) AS orders,
-        (
+        ( 
           SELECT JSON_ARRAYAGG(
             JSON_OBJECT('name', u.fullname, 'joined', u.joined)
           )
-          FROM users u
-          JOIN referredusers r ON r.referreduser = u.id
+          
+          FROM users ru
+          JOIN referredusers r ON r.referreduser = ru.id
           WHERE r.referral = u.id
         ) AS referredusers,
         (
@@ -222,6 +223,27 @@ export const getProfile = async (req: ReqAuth, res: Response) => {
      
 }
  
+export const getStat = async (req: ReqAuth, res: Response) => {
+  const {id} = req.params
+  try{
+    const q = `
+    SELECT * FROM stats where user = ?
+  `;
+    db.query(q,[id], (error:any, user:any) => {
+ 
+      if (error) {
+          console.error("Error executing query:", error);
+          return res.status(500).json({ error: "Unable to proceed further at the moment " });
+        } 
+  if (user.length === 0) return res.status(400).json("No User")
+  return res.status(200).json(user[0])
+      })
+}catch(err) {
+console.log(err)
+  res.status(500).json(err)
+}
+   
+}
 export const updateUser = async (req:ReqAuth, res:Response) => {
     const {id} = req.params
     const { fullname,email, phone, address, role, userId} = req.body;
@@ -278,6 +300,10 @@ export const updateUser = async (req:ReqAuth, res:Response) => {
       // Execute the update query
       
       db.query(updateQuery, updateParams);
+      if(userId) {
+        const ruserq = "INSERT into referredusers (`referreduser`, `referral`) VALUES (?,?)"
+        db.query(ruserq, [id, userId ]) 
+      }
       return res.status(200).json({ msg: 'User updated successfully' });
 
     } catch (error) {
