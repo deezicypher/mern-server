@@ -59,7 +59,7 @@ if(process.env.NODE_ENV === 'production'){
    
    
    
-app.listen(5000,()=>{
-    console.log(`⚡️[server]:  Server is running at 5000`);
+app.listen(8000,()=>{
+    console.log(`⚡️[server]:  Server is running at 8000`);
 })
   

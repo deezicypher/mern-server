@@ -18,8 +18,9 @@ dotenv.config()
 const ADMIN_EMAIL = `${process.env.ADMIN_EMAIL}`;
 const CLIENT_URL = `${process.env.CLIENT_URL}`
 
+const characters = '0123456789abcdefghijklmnopqrstuvwxyz';
 
-const code = otpGenerator.generate(6, { upperCaseAlphabets: false, specialChars: false });
+
 
 export const register = async (req: Request, res: Response) => {
     const {username, email,fullname,phone,refcode,password} = req.body;
@@ -58,8 +59,8 @@ export const register = async (req: Request, res: Response) => {
               }
   
 
-        const salt = await await bcrypt.genSaltSync(10)
-        const hashedPass = await await bcrypt.hashSync(password, salt)
+        const salt =  await bcrypt.genSaltSync(10)
+        const hashedPass =  await bcrypt.hashSync(password, salt)
         const referralCode = shortid();
        
 
@@ -74,7 +75,7 @@ export const register = async (req: Request, res: Response) => {
             }
             
               const referredbyId = referredby[0]?.id
-
+              const code = otpGenerator.generate(6, { upperCaseAlphabets: false, specialChars: false });
               const values = [
                   username,email,fullname,phone,referralCode,code,hashedPass,'USER',referredbyId, currentDate,password
               ]
@@ -136,8 +137,17 @@ export const resendEmail = async (req:Request, res:Response) => {
           }
           const newuser = {id:user[0]?.id}
           //const active_token = generateActiveToken(newuser)
+          const code = otpGenerator.generate(6, { upperCaseAlphabets: false, specialChars: false });
+          const iu = "UPDATE users SET vcode = ? WHERE email= ?"
+          db.query(iu, [code, email], (err, data) => {
+            if (err) {
+              console.error("Error executing active query:", err);
+              return res.status(500).json({error: "Unable to resend code at the moment."})
+            }
           const url = `${CLIENT_URL}/verifyemail`;
-         sendEmail(email, url, "Verify your email address",code, res, email);
+         sendEmail(email, url, "Verify your email address",code, res, email)
+
+          })
 })
   
   } catch (error) {
@@ -299,6 +309,7 @@ export const forgetPassword = async (req:Request, res:Response) => {
 
         if(user.length === 0) return res.status(404).json({error:"Account not found"})
           const inq = "UPDATE users SET resetcode = ? WHERE EMAIL = ?"
+          const code = otpGenerator.generate(6, { upperCaseAlphabets: false, specialChars: false });
          db.query(inq, [code, email], (err, user) => {
 
         if (err) {
@@ -415,7 +426,8 @@ try {
 
 export const updateProfile = async (req:ReqAuth, res:Response) => {
   const id = req.user?.id
-  const { fullname, phone, address} = req.body;
+  const { fullname, phone, address, country, zipcode, city, dob, caddress} = req.body;
+  
 
   // Build the update query dynamically based on provided parameters
   let updateQuery = 'UPDATE users SET ';
@@ -424,10 +436,17 @@ export const updateProfile = async (req:ReqAuth, res:Response) => {
   /*if(email) {
     updatemail(email,req, response)
   }*/
+  
+
 
   if (address) {
     updateQuery += 'address = ?, ';
     updateParams.push(address);
+  }
+
+  if (caddress) {
+    updateQuery += 'caddress = ?, ';
+    updateParams.push(caddress);
   }
 
   if (fullname) {
@@ -440,7 +459,25 @@ export const updateProfile = async (req:ReqAuth, res:Response) => {
     updateParams.push(phone);
   }
 
+  if (country) {
+    updateQuery += 'country = ?, ';
+    updateParams.push(country);
+  }
  
+  if (zipcode) {
+    updateQuery += 'zipcode = ?, ';
+    updateParams.push(zipcode);
+  }
+
+  if (city) {
+    updateQuery += 'city = ?, ';
+    updateParams.push(city);
+  }
+
+  if (dob) {
+    updateQuery += 'dob = ?, ';
+    updateParams.push(dob);
+  }
 
   // Remove the trailing comma and space from the update query
   updateQuery = updateQuery.slice(0, -2);
@@ -514,6 +551,12 @@ export const getProfile = async (req: ReqAuth, res: Response) => {
         u.referralCode,
         u.compounding,
         u.role,
+        u.country,
+        u.city,
+        u.zipcode,
+        u.dob,
+        u.caddress,
+        u.address,
         JSON_OBJECT('capital', s.capital, 'profit', s.profit, 'total', s.total, 'ref_e', s.ref_e) AS stats,
         (SELECT JSON_ARRAYAGG(
           JSON_OBJECT(
