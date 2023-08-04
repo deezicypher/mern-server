@@ -557,7 +557,7 @@ export const getProfile = async (req: ReqAuth, res: Response) => {
         u.dob,
         u.caddress,
         u.address,
-        JSON_OBJECT('capital', s.capital, 'profit', s.profit, 'total', s.total, 'ref_e', s.ref_e) AS stats,
+        JSON_OBJECT('capital', s.capital, 'profit', s.profit, 'total',s.profit + s.ref_e, 'ref_e', s.ref_e) AS stats,
         (SELECT JSON_ARRAYAGG(
           JSON_OBJECT(
             'name', o.product,

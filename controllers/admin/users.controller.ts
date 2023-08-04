@@ -168,11 +168,15 @@ export const getProfile = async (req: ReqAuth, res: Response) => {
         u.email,
         u.phone,
         u.referralCode,
-        u.referredBy,
-        u.address,
+        u.compounding,
         u.role,
-        u.joined,
-        JSON_OBJECT('capital', s.capital, 'profit', s.profit, 'total', s.total, 'ref_e', s.ref_e) AS stats,
+        u.country,
+        u.city,
+        u.zipcode,
+        u.dob,
+        u.caddress,
+        u.address,
+        JSON_OBJECT('capital', s.capital, 'profit', s.profit, 'total',s.profit + s.ref_e, 'ref_e', s.ref_e) AS stats,
         (SELECT JSON_ARRAYAGG(
           JSON_OBJECT(
             'name', o.product,
@@ -183,13 +187,13 @@ export const getProfile = async (req: ReqAuth, res: Response) => {
             'crypto', o.crypto,
             'method', o.method,
             'expires', o.expires
-          )) FROM orders o where o.user = u.id
+          )) FROM orders o  where o.user = u.id  ORDER BY o.id DESC
         ) AS orders,
-        ( 
+   
+        (
           SELECT JSON_ARRAYAGG(
-            JSON_OBJECT('name', u.fullname, 'joined', u.joined)
+            JSON_OBJECT('name', ru.fullname, 'joined', ru.joined)
           )
-          
           FROM users ru
           JOIN referredusers r ON r.referreduser = ru.id
           WHERE r.referral = u.id
